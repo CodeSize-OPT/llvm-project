@@ -78,12 +78,13 @@ extern double HostToDeviceSlope;
 /// Host to device constant clock offset
 extern double HostToDeviceOffset;
 
-/// Mapping of device pointers to their corresponding RTL device ID
-extern std::map<ompt_device_t *, int32_t> Devices;
+/// Access the map of device pointers to their corresponding RTL device ID
+std::map<ompt_device_t *, int32_t> &getDevices();
 
-/// Mapping of RTL device IDs to their currently enabled tracing event types.
-/// Note: Event type '0' (bit position) indicates if this device is traced.
-extern std::map<int32_t, uint64_t> TracedDevices;
+/// Access the map of RTL device IDs to their currently enabled tracing event
+/// types. Note: Event type '0' (bit position) indicates if this device is
+/// traced.
+std::map<int32_t, uint64_t> &getTracedDevices();
 
 /// OMPT global tracing status. Indicates if at least one device is traced.
 extern bool TracingActive;

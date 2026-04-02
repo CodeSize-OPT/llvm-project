@@ -40,13 +40,18 @@ using namespace llvm::omp::target::debug;
 double llvm::omp::target::ompt::HostToDeviceSlope = .0;
 double llvm::omp::target::ompt::HostToDeviceOffset = .0;
 
-std::map<ompt_device_t *, int32_t> llvm::omp::target::ompt::Devices;
+// File-local helper to hold the parent library shared_ptr as a function-local
+// static, avoiding a global destructor.
+static std::shared_ptr<llvm::sys::DynamicLibrary> &getParentLibraryStorage() {
+  static std::shared_ptr<llvm::sys::DynamicLibrary> Lib(nullptr);
+  return Lib;
+}
 
 int llvm::omp::target::ompt::getDeviceId(ompt_device_t *Device) {
   // Block other threads, which might trigger an erase (for the same device)
   std::unique_lock<std::mutex> Lock(DeviceIdWritingMutex);
-  auto DeviceIterator = Devices.find(Device);
-  if (Device == nullptr || DeviceIterator == Devices.end()) {
+  auto DeviceIterator = getDevices().find(Device);
+  if (Device == nullptr || DeviceIterator == getDevices().end()) {
     REPORT() << "Failed to get ID for Device=" << Device;
     return -1;
   }
@@ -61,8 +66,8 @@ void llvm::omp::target::ompt::setDeviceId(ompt_device_t *Device,
     return;
   }
   std::unique_lock<std::mutex> Lock(DeviceIdWritingMutex);
-  auto DeviceIterator = Devices.find(Device);
-  if (DeviceIterator != Devices.end()) {
+  auto DeviceIterator = getDevices().find(Device);
+  if (DeviceIterator != getDevices().end()) {
     auto CurrentDeviceId = DeviceIterator->second;
     if (DeviceId == CurrentDeviceId) {
       REPORT() << "Tried to duplicate OMPT Device= " << Device
@@ -73,7 +78,7 @@ void llvm::omp::target::ompt::setDeviceId(ompt_device_t *Device,
     }
     return;
   }
-  Devices.emplace(Device, DeviceId);
+  getDevices().emplace(Device, DeviceId);
 }
 
 void llvm::omp::target::ompt::removeDeviceId(ompt_device_t *Device) {
@@ -83,8 +88,8 @@ void llvm::omp::target::ompt::removeDeviceId(ompt_device_t *Device) {
     return;
   }
   std::unique_lock<std::mutex> Lock(DeviceIdWritingMutex);
-  Devices.erase(Device);
-  TracedDevices.erase(DeviceId);
+  getDevices().erase(Device);
+  getTracedDevices().erase(DeviceId);
 }
 
 OMPT_API_ROUTINE ompt_set_result_t ompt_set_trace_ompt(ompt_device_t *Device,
