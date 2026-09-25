@@ -31,9 +31,10 @@ using namespace llvm::omp::target::debug;
 
 PluginManager *PM = nullptr;
 
-// Every plugin exports this method to create an instance of the plugin type.
-#define PLUGIN_TARGET(Name) extern "C" GenericPluginTy *createPlugin_##Name();
-#include "Shared/Targets.def"
+namespace llvm::offload::tmp {
+GenericPluginTy *__ol_tgt_GetPluginFromPlatform(ol_platform_handle_t Platform);
+int32_t __ol_tgt_GetPluginDeviceId(ol_device_handle_t Device);
+} // namespace llvm::offload::tmp
 
 void PluginManager::init() {
   TIMESCOPE();
@@ -96,8 +97,10 @@ bool PluginManager::initializeDevice(ol_device_handle_t DeviceHandle) {
     return false;
   }
 
-  GenericPluginTy &Plugin = *__ol_tgt_GetPluginFromPlatform(PlatformHandle);
-  int32_t DeviceId = __ol_tgt_GetPluginDeviceId(DeviceHandle);
+  GenericPluginTy &Plugin =
+      *llvm::offload::tmp::__ol_tgt_GetPluginFromPlatform(PlatformHandle);
+  int32_t DeviceId =
+      llvm::offload::tmp::__ol_tgt_GetPluginDeviceId(DeviceHandle);
 
   auto ExclusiveDevicesAccessor = getExclusiveDevicesAccessor();
   // Initialize the device information for the RTL we are about to use.
