@@ -275,18 +275,18 @@ end subroutine
 ! Both induction variables (j and i) are privatized:
 ! CHECK: %[[PRIVJ:.*]] = acc.private varPtr(%{{.*}} : !fir.ref<i32>) recipe(@privatization_ref_i32) implicit(true) name("j") -> !fir.ref<i32>
 ! CHECK: %[[PRIVI:.*]] = acc.private varPtr(%{{.*}} : !fir.ref<i32>) recipe(@privatization_ref_i32) implicit(true) name("i") -> !fir.ref<i32>
-! CHECK: acc.loop combined(serial) private(%[[PRIVJ]], %[[PRIVI]] : !fir.ref<i32>, !fir.ref<i32>) {
-! The IF-guarded CYCLE branches only within the body, so both loops keep their
-! bounds on the op -- control(...) rather than a cf trip-count test -- and the
-! raw blocks are confined to a wrap inside each body.
-! CHECK: acc.loop private({{.*}}) control(%{{.*}} : i32) = (%{{.*}} : i32) to (%{{.*}} : i32) step (%{{.*}} : i32) {
-! CHECK: scf.execute_region no_inline {
-! CHECK: acc.loop private({{.*}}) control(%{{.*}} : i32) = (%{{.*}} : i32) to (%{{.*}} : i32) step (%{{.*}} : i32) {
+! The IF-guarded CYCLE branches only within the body, so the directive's own
+! acc.loop keeps the bounds of both collapsed levels -- control(...) rather
+! than a cf trip-count test -- and the raw blocks are confined to a wrap inside
+! the body. No further acc.loop is nested inside it.
+! CHECK: acc.loop combined(serial) private(%[[PRIVJ]], %[[PRIVI]] : !fir.ref<i32>, !fir.ref<i32>) control(%{{.*}} : i32, %{{.*}} : i32) = (%{{.*}}, %{{.*}} : i32, i32) to (%{{.*}}, %{{.*}} : i32, i32) step (%{{.*}}, %{{.*}} : i32, i32) {
+! CHECK-NOT: acc.loop
 ! CHECK: scf.execute_region no_inline {
 ! CHECK: arith.cmpi eq
 ! CHECK: cf.cond_br
 ! CHECK: scf.yield
 ! CHECK: acc.yield
+! CHECK: } inclusiveUpperbound({{.*}}) collapse([2])
 
 ! `acc serial loop collapse(N)` with STOP in body: wrap-in-execute-region hides
 ! the unstructured if/stop and the three collapsed iterators lower as a single
@@ -333,9 +333,12 @@ subroutine test_unstructured_collapse_loop_only(a)
 end subroutine
 
 ! CHECK-LABEL: func.func @_QPtest_unstructured_collapse_loop_only
-! Standalone acc.loop (no `combined(...)`):
-! CHECK: acc.loop private(%{{.*}}, %{{.*}} : !fir.ref<i32>, !fir.ref<i32>) {
-! CHECK: } collapse([2]) collapseDeviceType([#acc.device_type<none>]) independent unstructured
+! Standalone acc.loop (no `combined(...)`). The directive owns the loop, so it
+! carries the bounds of both collapsed levels and the body's branching is
+! confined to a wrap -- the op is no longer `unstructured`.
+! CHECK: acc.loop private(%{{.*}}, %{{.*}} : !fir.ref<i32>, !fir.ref<i32>) control(%{{.*}} : i32, %{{.*}} : i32) = (%{{.*}}, %{{.*}} : i32, i32) to (%{{.*}}, %{{.*}} : i32, i32) step (%{{.*}}, %{{.*}} : i32, i32) {
+! CHECK: scf.execute_region no_inline {
+! CHECK: } inclusiveUpperbound({{.*}}) collapse([2]) collapseDeviceType([#acc.device_type<none>]) independent
 
 ! Standalone `acc loop seq` with STOP: wrap-in-execute-region hides the
 ! if/stop and the DO lowers as structured acc.loop control(...) (no
